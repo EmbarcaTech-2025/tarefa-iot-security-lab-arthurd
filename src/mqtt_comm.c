@@ -1,5 +1,6 @@
 #include "lwip/apps/mqtt.h"       // Biblioteca MQTT do lwIP
 #include "include/mqtt_comm.h"    // Header file com as declarações locais
+#include "include/xor_cipher.h"   // Inclui o header da função xor_encrypt
 // Base: https://github.com/BitDogLab/BitDogLab-C/blob/main/wifi_button_and_led/lwipopts.h
 #include "lwipopts.h"             // Configurações customizadas do lwIP
 
@@ -93,5 +94,73 @@ void mqtt_comm_publish(const char *topic, const uint8_t *data, size_t len) {
 
     if (status != ERR_OK) {
         printf("mqtt_publish falhou ao ser enviada: %d\n", status);
+    }
+}
+
+/* Callback de recebimento de dados
+ * Chamado quando uma mensagem é recebida em um tópico inscrito
+ * Parâmetros:
+ *   - arg: argumento opcional (usado aqui para a chave de decifragem)
+ *   - data: dados recebidos
+ *   - len: tamanho dos dados recebidos
+ *   - flags: flags MQTT adicionais */
+static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags) {
+    uint8_t key = *(uint8_t*)arg;  // Obtém a chave de decifragem do argumento
+    uint8_t decifrada[128];        // Buffer para a mensagem decifrada
+    
+    // Verifica se o tamanho da mensagem não excede o buffer
+    if (len >= sizeof(decifrada)) {
+        printf("Mensagem muito grande para ser decodificada\n");
+        return;
+    }
+    
+    // Decifra a mensagem usando a função XOR
+    xor_encrypt(data, decifrada, len, key);
+    
+    // Adiciona terminador nulo para exibir como string
+    decifrada[len] = '\0';
+    
+    printf("Mensagem recebida decodificada: %s\n", (char*)decifrada);
+}
+
+/* Callback de inscrição em tópico
+ * Chamado quando a subscrição é concluída
+ * Parâmetros:
+ *   - arg: argumento opcional
+ *   - err: erro (se houver) */
+static void mqtt_sub_request_cb(void *arg, err_t err) {
+    if (err == ERR_OK) {
+        printf("Inscrição no tópico MQTT realizada com sucesso!\n");
+    } else {
+        printf("Erro ao inscrever no tópico MQTT: %d\n", err);
+    }
+}
+
+/* Função para inscrever em um tópico MQTT
+ * Parâmetros:
+ *   - topic: nome do tópico (ex: "sensor/temperatura")
+ *   - decrypt_key: chave para decifragem das mensagens */
+void mqtt_comm_subscribe(const char *topic, uint8_t decrypt_key) {
+    static uint8_t key_storage;  // Armazena a chave para uso no callback
+    key_storage = decrypt_key;
+    
+    // Configuração correta dos callbacks de entrada de dados
+    // A ordem correta é: cliente, callback de chegada de tópico, callback de dados, argumento do usuário
+    mqtt_set_inpub_callback(client, 
+                           NULL,                  // Callback de publicação (pode ser NULL)
+                           mqtt_incoming_data_cb, // Callback de dados recebidos
+                           &key_storage);         // Argumento para o callback (chave)
+    
+    // Agora inscreve no tópico
+    err_t err = mqtt_subscribe(
+        client,                // Instância do cliente
+        topic,                 // Tópico para inscrição
+        0,                     // QoS 0
+        mqtt_sub_request_cb,   // Callback de confirmação
+        NULL                   // Argumento para o callback
+    );
+    
+    if(err != ERR_OK) {
+        printf("Falha ao solicitar inscrição no tópico: %d\n", err);
     }
 }

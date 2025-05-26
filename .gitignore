@@ -1,1 +1,15 @@
-build
+# Arquivos de ambiente com dados sensíveis
+config.h
+
+# Arquivos compilados
+*.o
+*.bin
+*.elf
+*.uf2
+build/
+
+# Arquivos de IDE/editor
+.vscode/
+.idea/
+*.swp
+*~

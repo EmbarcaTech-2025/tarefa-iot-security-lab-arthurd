@@ -60,14 +60,45 @@ target_link_libraries(iot_security_lab
         pico_lwip
         # O driver do chip Wi-Fi CYW43 (usado no Pico W).
         pico_cyw43_driver
-        # pico_time
-        # pico_unique_id
+        pico_time
+        pico_unique_id
         )
 
 # Add the standard include files to the build
 target_include_directories(iot_security_lab PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
 )
+
+# Adicionar o executável do subscriber MQTT
+add_executable(mqtt_subscriber mqtt_subscriber_example.c
+    src/mqtt_comm.c
+    src/wifi_conn.c
+    src/xor_cipher.c
+)
+
+pico_set_program_name(mqtt_subscriber "mqtt_subscriber")
+pico_set_program_version(mqtt_subscriber "0.1")
+
+# Configurar saída para USB
+pico_enable_stdio_uart(mqtt_subscriber 0)
+pico_enable_stdio_usb(mqtt_subscriber 1)
+
+# Adicionar bibliotecas necessárias
+target_link_libraries(mqtt_subscriber
+        pico_stdlib
+        pico_cyw43_arch_lwip_threadsafe_background
+        pico_lwip_mqtt
+        pico_lwip
+        pico_cyw43_driver
+)
+
+# Adicionar diretórios de inclusão
+target_include_directories(mqtt_subscriber PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}
+)
+
+# Adicionar saídas extras (.uf2, etc.)
+pico_add_extra_outputs(mqtt_subscriber)
 
 # Add any user requested libraries
 target_link_libraries(iot_security_lab 
